@@ -1,0 +1,38 @@
+{
+  "generator": "TraceGraphSyntheticGenerator",
+  "generated_at_utc": "2026-07-26T07:28:54.845734+00:00",
+  "config": {
+    "n_customers": 1000,
+    "horizon_days": 120,
+    "seed": 2026,
+    "noise_level": "moderate",
+    "start_datetime": null,
+    "output_dir": "tracegraph_synthetic",
+    "max_journeys_per_customer": 14,
+    "max_events_per_journey": 8,
+    "pair_sample_size": 30000,
+    "include_ground_truth": true
+  },
+  "counts": {
+    "customers": 1000,
+    "events": 9189,
+    "journeys": 5524,
+    "identity_nodes": 6987,
+    "identity_edges": 5987,
+    "pair_samples": 30000
+  },
+  "event_channel_distribution": {
+    "app": 0.3273,
+    "call_center": 0.3026,
+    "web": 0.2788,
+    "in_person": 0.0912
+  },
+  "journey_resolution_rate": 0.8139,
+  "journey_escalation_rate": 0.4712,
+  "customer_churn_rate_30d": 0.141,
+  "notes": [
+    "All data are synthetic and must not be interpreted as American Express data.",
+    "Ground-truth customer identifiers are included for prototype training and evaluation.",
+    "Observed identifiers intentionally contain missingness, typographical noise, rotation, and occasional conflicts."
+  ]
+}
