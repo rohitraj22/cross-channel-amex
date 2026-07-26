@@ -70,28 +70,41 @@ export default function JourneyTab({ customer, apiBase }) {
   const riskColor = riskLevel === 'CRITICAL' || riskLevel === 'Critical' ? '#dc2626'
     : riskLevel === 'HIGH' || riskLevel === 'High' ? '#d97706' : '#16a34a';
 
+  const isNoAction = !nba || nba.toLowerCase().includes('no immediate action required') || nba.toLowerCase().includes('continue standard engagement');
+  const requiresAction = !isNoAction;
+
   return (
     <div>
       {/* NBA Banner */}
       {nba && (
         <div
-          className={`alert-banner ${(riskLevel === 'CRITICAL' || riskLevel === 'Critical') ? '' : 'alert-banner-orange'}`}
-          style={{ marginBottom: 20 }}
+          className={`alert-banner ${requiresAction ? ((riskLevel === 'CRITICAL' || riskLevel === 'Critical') ? '' : 'alert-banner-orange') : ''}`}
+          style={{
+            marginBottom: 20,
+            background: requiresAction ? undefined : '#f0fdf4',
+            borderColor: requiresAction ? undefined : '#bbf7d0',
+          }}
         >
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <span style={{ fontSize: 20, flexShrink: 0 }}>
-              {(riskLevel === 'CRITICAL' || riskLevel === 'Critical') ? '🚨' : '⚠️'}
+              {requiresAction ? ((riskLevel === 'CRITICAL' || riskLevel === 'Critical') ? '🚨' : '⚠️') : '✅'}
             </span>
             <div>
-              <div style={{ fontWeight: 600, color: riskColor, marginBottom: 3 }}>
-                Recommended Action
+              <div style={{ fontWeight: 600, color: requiresAction ? riskColor : '#16a34a', marginBottom: 3 }}>
+                {requiresAction ? 'Recommended Action' : 'Customer Status'}
               </div>
-              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6 }}>{nba}</div>
+              <div style={{ fontSize: 13, color: requiresAction ? '#475569' : '#15803d', lineHeight: 1.6 }}>{nba}</div>
             </div>
           </div>
-          <button className="btn btn-primary" style={{ flexShrink: 0, fontSize: 12 }}>
-            Act Now
-          </button>
+          {requiresAction && (
+            <button
+              className="btn btn-primary"
+              onClick={() => alert(`Action Triggered for ${profile.name || profile.cust_id}:\n\n"${nba}"`)}
+              style={{ flexShrink: 0, fontSize: 12 }}
+            >
+              Act Now
+            </button>
+          )}
         </div>
       )}
 

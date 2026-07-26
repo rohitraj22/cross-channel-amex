@@ -35,6 +35,10 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function AnalyticsTab({ apiBase }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pageSize, setPageSize] = useState(12);
+  const [maxCols, setMaxCols] = useState(4);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageInput, setPageInput] = useState(1);
 
   useEffect(() => {
     fetch(`${apiBase}/api/analytics/summary`)
@@ -42,6 +46,11 @@ export default function AnalyticsTab({ apiBase }) {
       .then(data => { setSummary(data); setLoading(false); })
       .catch(e => { console.error('Analytics load error:', e); setLoading(false); });
   }, [apiBase]);
+
+  // Keep pageInput synced with currentPage state
+  useEffect(() => {
+    setPageInput(currentPage);
+  }, [currentPage]);
 
   if (loading) {
     return (
@@ -84,11 +93,48 @@ export default function AnalyticsTab({ apiBase }) {
     color: CHANNEL_COLORS_MAP[ch] || '#2563eb',
   }));
 
-  const severityData = Object.entries(summary.severity_distribution || {}).map(([sev, cnt]) => ({
-    name: toLabel(sev) + ' Risk',
-    value: cnt,
-    color: sev === 'high' ? '#dc2626' : sev === 'medium' ? '#d97706' : '#16a34a',
-  }));
+  const severityData = Object.entries(summary.severity_distribution || {}).map(([sev, cnt]) => {
+    const num = parseFloat(sev);
+    let color = '#16a34a';
+    if (!isNaN(num)) {
+      color = num >= 0.6 ? '#dc2626' : num >= 0.3 ? '#d97706' : '#16a34a';
+    } else if (sev === 'high' || sev === 'critical') {
+      color = '#dc2626';
+    } else if (sev === 'medium' || sev === 'moderate') {
+      color = '#d97706';
+    }
+    return {
+      name: isNaN(num) ? toLabel(sev) + ' Risk' : `${(num * 100).toFixed(0)}% Severity Risk`,
+      value: cnt,
+      color,
+    };
+  });
+
+  const totalPages = Math.ceil(severityData.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedSeverityData = severityData.slice(startIndex, startIndex + pageSize);
+
+  const handlePageInputChange = (e) => {
+    const rawVal = e.target.value;
+    setPageInput(rawVal);
+    const val = parseInt(rawVal, 10);
+    if (!isNaN(val) && val >= 1 && val <= totalPages) {
+      setCurrentPage(val);
+    }
+  };
+
+  const handlePageInputBlur = () => {
+    const val = parseInt(pageInput, 10);
+    if (isNaN(val) || val < 1) {
+      setCurrentPage(1);
+      setPageInput(1);
+    } else if (val > totalPages) {
+      setCurrentPage(totalPages);
+      setPageInput(totalPages);
+    } else {
+      setCurrentPage(val);
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -231,20 +277,152 @@ export default function AnalyticsTab({ apiBase }) {
         </div>
       </div>
 
-      {/* Severity distribution */}
+      {/* Severity distribution with Pagination & Interactive Direct Jump Controls */}
       {severityData.length > 0 && (
         <div className="card card-p">
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', marginBottom: 4 }}>
-            Issue severity breakdown
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+                Issue severity breakdown
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                Severity of all tracked customer journeys ({severityData.length} total entries)
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              {/* Max Columns Dropdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>
+                  Columns:
+                </label>
+                <select
+                  className="form-select"
+                  value={maxCols}
+                  onChange={e => setMaxCols(Number(e.target.value))}
+                  style={{ fontSize: 11, padding: '4px 8px', width: 'auto' }}
+                >
+                  <option value={2}>2 Columns</option>
+                  <option value={4}>4 Columns</option>
+                  <option value={6}>6 Columns</option>
+                  <option value={8}>8 Columns</option>
+                </select>
+              </div>
+
+              {/* Items Per Page Dropdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>
+                  Items per page:
+                </label>
+                <select
+                  className="form-select"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  style={{ fontSize: 11, padding: '4px 8px', width: 'auto' }}
+                >
+                  <option value={8}>8 per page</option>
+                  <option value={12}>12 per page</option>
+                  <option value={16}>16 per page</option>
+                  <option value={24}>24 per page</option>
+                  <option value={32}>32 per page</option>
+                </select>
+              </div>
+
+              {/* Advanced Pagination Controls: First, Prev, Direct Page Input, Next, Last */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                {/* First Page Button */}
+                <button
+                  className="btn btn-outline"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  title="First Page"
+                  style={{ padding: '3px 7px', fontSize: 11, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  |← First
+                </button>
+
+                {/* Prev Button */}
+                <button
+                  className="btn btn-outline"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  style={{ padding: '3px 7px', fontSize: 11, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  ← Prev
+                </button>
+
+                {/* Direct Page Input & Total Pages */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '0 2px' }}>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={pageInput}
+                    onChange={handlePageInputChange}
+                    onBlur={handlePageInputBlur}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        handlePageInputBlur();
+                        e.target.blur();
+                      }
+                    }}
+                    title="Type a page number and press Enter"
+                    style={{
+                      width: 46,
+                      padding: '3px 4px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      textAlign: 'center',
+                      borderRadius: 6,
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>
+                    / {totalPages}
+                  </span>
+                </div>
+
+                {/* Next Button */}
+                <button
+                  className="btn btn-outline"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  style={{ padding: '3px 7px', fontSize: 11, opacity: currentPage >= totalPages ? 0.4 : 1, cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer' }}
+                >
+                  Next →
+                </button>
+
+                {/* Last Page Button */}
+                <button
+                  className="btn btn-outline"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  title="Last Page"
+                  style={{ padding: '3px 7px', fontSize: 11, opacity: currentPage >= totalPages ? 0.4 : 1, cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer' }}
+                >
+                  Last →|
+                </button>
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
-            Severity of all tracked customer journeys
-          </div>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            {severityData.map((d, i) => (
-              <div key={i} className="kpi-box" style={{ minWidth: 120, flex: 1 }}>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>{d.name}</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: d.color }}>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${maxCols}, minmax(0, 1fr))`,
+            gap: 12,
+          }}>
+            {paginatedSeverityData.map((d, i) => (
+              <div key={i} className="kpi-box" style={{ padding: '12px 14px', minHeight: 74 }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {d.name}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: d.color }}>
                   {d.value.toLocaleString()}
                 </div>
               </div>
