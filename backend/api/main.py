@@ -66,13 +66,17 @@ for topic in kafka.TOPICS:
             evt = record["payload"]
             normalized, timeline = flink.ingest_event(evt)
             clickhouse.insert_event(normalized)
-            # Broadcast to active WebSockets
-            asyncio.create_task(broadcast_event({
-                "type": "LIVE_KAFKA_EVENT",
-                "topic": t,
-                "event": normalized,
-                "timeline_length": len(timeline)
-            }))
+            # Broadcast to active WebSockets if loop is running
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(broadcast_event({
+                    "type": "LIVE_KAFKA_EVENT",
+                    "topic": t,
+                    "event": normalized,
+                    "timeline_length": len(timeline)
+                }))
+            except Exception:
+                pass
         return handler
     kafka.subscribe(topic, make_handler(topic))
 

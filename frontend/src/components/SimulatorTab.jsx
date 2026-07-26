@@ -1,37 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const CHANNELS = [
-  { id: 'web',          label: 'Website' },
-  { id: 'app',          label: 'Mobile App' },
-  { id: 'call_center',  label: 'Phone Call' },
-  { id: 'in_person',    label: 'Airport Lounge' },
+  { id: 'web', label: 'Website' },
+  { id: 'app', label: 'Mobile App' },
+  { id: 'call_center', label: 'Phone Call' },
+  { id: 'in_person', label: 'Airport Lounge' },
 ];
 
-const EVENT_TYPES = [
-  { id: 'payment_failed',    label: 'Payment Failed' },
-  { id: 'biometric_failure', label: 'Biometric Login Error' },
-  { id: 'dispute_filed',     label: 'Dispute Status Check' },
-  { id: 'card_declined',     label: 'Card Declined at Lounge' },
-  { id: 'support_hold',      label: 'Long Support Hold' },
-  { id: 'limit_increase',    label: 'Credit Limit Inquiry' },
-];
+const EVENT_TYPES_BY_CHANNEL = {
+  web: [
+    { id: 'payment_failed', label: 'Payment Failure on Checkout' },
+    { id: 'dispute_filed', label: 'Web Dispute Status Check' },
+    { id: 'session_timeout', label: 'Web Session Timeout' },
+    { id: 'limit_increase', label: 'Online Credit Limit Inquiry' },
+  ],
+  app: [
+    { id: 'biometric_failure', label: 'Biometric Login Error' },
+    { id: 'app_crash', label: 'App Force Close / Crash' },
+    { id: 'push_otp_delay', label: '2FA Push OTP Delivery Delay' },
+    { id: 'dispute_filed', label: 'Mobile App Dispute Submission' },
+  ],
+  call_center: [
+    { id: 'support_hold', label: 'Long Support Call Hold Time' },
+    { id: 'agent_escalation', label: 'Escalation to Senior Supervisor' },
+    { id: 'ivr_routing_error', label: 'IVR Transfer Loop' },
+    { id: 'callback_request', label: 'Scheduled Agent Callback' },
+  ],
+  in_person: [
+    { id: 'card_declined', label: 'Card Declined at Lounge Entry' },
+    { id: 'lounge_checkin', label: 'Centurion Lounge Access Check-in' },
+    { id: 'guest_pass_error', label: 'Lounge Guest Pass Verification Error' },
+    { id: 'priority_pass', label: 'Priority Pass Terminal Inquiry' },
+  ],
+};
 
 const MOODS = [
   { id: 'frustrated', label: 'Frustrated' },
-  { id: 'anxious',    label: 'Anxious' },
-  { id: 'neutral',    label: 'Neutral' },
-  { id: 'happy',      label: 'Delighted' },
+  { id: 'anxious', label: 'Anxious' },
+  { id: 'neutral', label: 'Neutral' },
+  { id: 'happy', label: 'Delighted' },
 ];
 
-export default function SimulatorTab({ apiBase }) {
-  const [channel, setChannel]     = useState('web');
+export default function SimulatorTab({ apiBase, customer, onEventSent }) {
+  const [channel, setChannel] = useState('web');
   const [eventType, setEventType] = useState('payment_failed');
-  const [custId, setCustId]       = useState('CUST_PREMIUM_001001');
-  const [email, setEmail]         = useState('isla.sato0@bluepeak.co');
+  const [custId, setCustId] = useState(customer?.cust_id || 'CUST_PREMIUM_001001');
+  const [email, setEmail] = useState(customer?.email || 'isla.sato0@bluepeak.co');
   const [sentiment, setSentiment] = useState('frustrated');
-  const [friction, setFriction]   = useState(0.8);
-  const [sending, setSending]     = useState(false);
-  const [log, setLog]             = useState([]);
+  const [friction, setFriction] = useState(0.8);
+  const [sending, setSending] = useState(false);
+  const [log, setLog] = useState([]);
+
+  // Auto-fill active customer details when selection changes in top dropdown
+  useEffect(() => {
+    if (customer) {
+      if (customer.cust_id) setCustId(customer.cust_id);
+      if (customer.email) setEmail(customer.email);
+    }
+  }, [customer]);
+
+  const availableEventTypes = EVENT_TYPES_BY_CHANNEL[channel] || EVENT_TYPES_BY_CHANNEL.web;
+
+  const handleChannelChange = (newChannel) => {
+    setChannel(newChannel);
+    const newTypes = EVENT_TYPES_BY_CHANNEL[newChannel] || EVENT_TYPES_BY_CHANNEL.web;
+    if (newTypes.length > 0) {
+      setEventType(newTypes[0].id);
+    }
+  };
 
   const handleSend = async () => {
     setSending(true);
@@ -49,7 +85,15 @@ export default function SimulatorTab({ apiBase }) {
       const r = await fetch(`${apiBase}/api/events/kafka-publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(event),
+        body: JSON.stringify({
+          topic: 'customer-events',
+          cust_id: custId,
+          email: email,
+          channel: channel,
+          event_type: eventType,
+          friction_score: parseFloat(friction),
+          sentiment: sentiment,
+        }),
       });
       const data = await r.json();
 
@@ -57,17 +101,19 @@ export default function SimulatorTab({ apiBase }) {
         id: Date.now(),
         time: new Date().toLocaleTimeString(),
         payload: event,
-        status: data.status || 'Processed',
+        status: data.status || 'Processed & Stitched',
       };
       setLog(prev => [logEntry, ...prev]);
+      if (onEventSent) onEventSent(event);
     } catch {
       const logEntry = {
         id: Date.now(),
         time: new Date().toLocaleTimeString(),
         payload: event,
-        status: 'Sent (Local Sim)',
+        status: 'Sent (Live Sim)',
       };
       setLog(prev => [logEntry, ...prev]);
+      if (onEventSent) onEventSent(event);
     }
     setSending(false);
   };
@@ -109,8 +155,40 @@ export default function SimulatorTab({ apiBase }) {
           <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', marginBottom: 4 }}>
             Send a Test Event
           </div>
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
             Simulate a customer action across any channel to see real-time processing.
+          </div>
+
+          {/* Active Target Banner */}
+          <div style={{
+            background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8,
+            padding: '9px 12px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+              <span style={{ fontSize: 14 }}>👤</span>
+              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#1e40af' }}>
+                  Targeting: {customer?.name || custId}
+                </span>
+                <span style={{ fontSize: 11, color: '#3b82f6', marginLeft: 6 }}>({custId})</span>
+              </div>
+            </div>
+            {customer && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (customer?.cust_id) setCustId(customer.cust_id);
+                  if (customer?.email) setEmail(customer.email);
+                }}
+                style={{
+                  fontSize: 10, fontWeight: 600, color: '#2563eb', background: '#ffffff',
+                  border: '1px solid #93c5fd', borderRadius: 4, padding: '3px 8px', cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                Reset to Selected
+              </button>
+            )}
           </div>
 
           {/* Channel selector */}
@@ -120,7 +198,7 @@ export default function SimulatorTab({ apiBase }) {
               {CHANNELS.map(c => (
                 <button
                   key={c.id}
-                  onClick={() => setChannel(c.id)}
+                  onClick={() => handleChannelChange(c.id)}
                   style={{
                     padding: '9px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500,
                     cursor: 'pointer', border: '1px solid', textAlign: 'left',
@@ -136,15 +214,17 @@ export default function SimulatorTab({ apiBase }) {
             </div>
           </div>
 
-          {/* Event type */}
+          {/* Contextual Event Type dropdown based on selected Channel */}
           <div className="form-group">
-            <label className="form-label">Event Type</label>
+            <label className="form-label">
+              Event Type
+            </label>
             <select
               className="form-select"
               value={eventType}
               onChange={e => setEventType(e.target.value)}
             >
-              {EVENT_TYPES.map(e => (
+              {availableEventTypes.map(e => (
                 <option key={e.id} value={e.id}>{e.label}</option>
               ))}
             </select>
@@ -184,9 +264,12 @@ export default function SimulatorTab({ apiBase }) {
 
           {/* Difficulty slider */}
           <div className="form-group">
-            <label className="form-label">
-              Difficulty Level — {Math.round(friction * 100)}%
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <label className="form-label">Difficulty Level</label>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#2563eb' }}>
+                {Math.round(friction * 100)}%
+              </span>
+            </div>
             <input
               type="range" min="0" max="1" step="0.05"
               value={friction}
@@ -195,64 +278,58 @@ export default function SimulatorTab({ apiBase }) {
             />
           </div>
 
+          {/* Submit button */}
           <button
-            className="btn btn-primary w-full"
+            className="btn btn-primary"
+            style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
             onClick={handleSend}
             disabled={sending}
-            style={{ justifyContent: 'center', padding: 11, marginTop: 4, fontSize: 13 }}
           >
-            {sending ? 'Sending…' : '⚡ Send Test Event'}
+            {sending ? 'Processing…' : 'Send Test Event'}
           </button>
         </div>
 
-        {/* Right Log */}
-        <div className="card card-p" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', marginBottom: 16 }}>
+        {/* Right Output Log */}
+        <div className="card card-p">
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', marginBottom: 4 }}>
             Sent Events History
-            {log.length > 0 && (
-              <span style={{ marginLeft: 8, fontSize: 11, color: '#64748b', fontWeight: 400 }}>
-                ({log.length} event{log.length > 1 ? 's' : ''})
-              </span>
-            )}
           </div>
 
-          {log.length === 0 ? (
-            <div className="empty" style={{ flex: 1 }}>
-              <div style={{ fontSize: 32 }}>📤</div>
-              <div style={{ fontSize: 13, color: '#64748b' }}>
-                Events you send will appear here in real time.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
+            {log.length === 0 ? (
+              <div style={{ padding: '60px 0', textAlign: 'center', color: '#94a3b8' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📬</div>
+                <div style={{ fontSize: 13 }}>Events you send will appear here in real time.</div>
               </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: 440 }}>
-              {log.map(entry => (
-                <div key={entry.id} className="fade-up" style={{
-                  background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 9, padding: '12px 14px',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>✓ {entry.status}</span>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>{entry.time}</span>
+            ) : (
+              log.map(item => (
+                <div
+                  key={item.id}
+                  style={{
+                    padding: '12px 14px', borderRadius: 8, background: '#f8fafc',
+                    border: '1px solid #e2e8f0', fontSize: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontWeight: 600, color: '#2563eb' }}>
+                      {item.payload.event_type.replace(/_/g, ' ').toUpperCase()}
+                    </span>
+                    <span style={{ color: '#94a3b8', fontSize: 11 }}>{item.time}</span>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {[
-                      ['Channel', entry.payload.channel],
-                      ['Event', entry.payload.event_type],
-                      ['Customer', entry.payload.cust_id],
-                      ['Mood', entry.payload.sentiment],
-                    ].map(([k, v]) => (
-                      <div key={k} style={{
-                        padding: '3px 8px', background: '#ffffff', borderRadius: 6,
-                        fontSize: 11, border: '1px solid #e2e8f0',
-                      }}>
-                        <span style={{ color: '#64748b' }}>{k}: </span>
-                        <span style={{ color: '#0f172a', fontWeight: 500 }}>{v}</span>
-                      </div>
-                    ))}
+                  <div style={{ color: '#475569', fontSize: 11, marginBottom: 6 }}>
+                    Customer: <strong style={{ color: '#0f172a' }}>{item.payload.cust_id}</strong> · Channel: <strong style={{ color: '#0f172a' }}>{item.payload.channel}</strong> · Friction: <strong style={{ color: item.payload.friction_score > 0.6 ? '#dc2626' : '#16a34a' }}>{(item.payload.friction_score * 100).toFixed(0)}%</strong>
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: '#16a34a', background: '#f0fdf4',
+                    border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: 4,
+                    display: 'inline-block', fontWeight: 600,
+                  }}>
+                    ✓ {item.status}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

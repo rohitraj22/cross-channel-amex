@@ -57,9 +57,22 @@ export default function JourneyTab({ customer, apiBase }) {
 
   const profile   = customer.profile   || customer;
   const analytics = customer.analytics || {};
-  const timeline  = customer.timeline  || [];
+  const rawTimeline = customer.timeline  || [];
   const journeys  = customer.journeys  || [];
   const identityGraph = customer.identity_graph || { nodes: customer.nodes || [], edges: customer.edges || [] };
+
+  // Sort activity timeline so the latest event appears first
+  const timeline = [...rawTimeline].sort((a, b) => {
+    const getTs = e => {
+      if (typeof e.timestamp === 'number' && e.timestamp > 0) return e.timestamp;
+      if (e.timestamp_iso) {
+        const parsed = new Date(e.timestamp_iso).getTime() / 1000;
+        if (!isNaN(parsed)) return parsed;
+      }
+      return 0;
+    };
+    return getTs(b) - getTs(a);
+  });
 
   const churnPct  = analytics.churn_risk_pct ?? customer.churn_risk_pct ?? 0;
   const frictionIdx = analytics.friction_index ?? customer.friction_index ?? 0;

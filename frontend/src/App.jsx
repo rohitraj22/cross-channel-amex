@@ -387,7 +387,7 @@ export default function App() {
             <div className="fade-up" key={(tab + selected?.cust_id)} style={{ width: '100%', boxSizing: 'border-box' }}>
               {tab === 'journey' && <JourneyTab customer={selected} apiBase={API} />}
               {tab === 'analytics' && <AnalyticsTab apiBase={API} />}
-              {tab === 'simulator' && <SimulatorTab apiBase={API} />}
+              {tab === 'simulator' && <SimulatorTab apiBase={API} customer={selected} onEventSent={() => selectCustomer(selected)} />}
             </div>
           )}
         </div>
