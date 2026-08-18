@@ -1,9 +1,8 @@
 # NexusStitch 360: Cross-Channel Identity Resolution & Event-Stitching Platform
 
-> **American Express Customer Experience Platform**  
-> A real-time, explainable identity resolution and event-stitching platform that links customer interactions across **Mobile App**, **Web Portal**, **Call Center**, and **In-Person Lounges/Branches** into a single 360° customer journey timeline.
+A real-time, explainable identity resolution and event-stitching platform that links customer interactions across **Mobile App**, **Web Portal**, **Call Center**, and **In-Person Lounges/Branches** into a single 360° customer journey timeline.
 
-**GitHub Repository**: [https://github.com/rohitraj22/cross-channel-amex](https://github.com/rohitraj22/cross-channel-amex)
+** Deployed on:** https://cross-channel-amex.onrender.com/
 
 ---
 
