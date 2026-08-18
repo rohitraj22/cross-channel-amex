@@ -5,11 +5,14 @@ Exposes REST APIs and WebSockets for Analyst Dashboard, GNN Explainer, Flink Str
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
 import time
 import json
 import asyncio
+import os
 
 from backend.streaming.kafka_broker import KafkaMessageBroker
 from backend.streaming.flink_processor import FlinkStreamProcessor
@@ -287,3 +290,21 @@ async def websocket_stream_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         if websocket in active_websockets:
             active_websockets.remove(websocket)
+
+# ── Serve built React frontend (production only) ──────────────────────────────
+# In local dev the Vite dev server (port 3000) serves the frontend instead.
+# In production (Render), the build step produces frontend/dist/ which FastAPI
+# serves here so the whole app runs as a single service on one port.
+
+_DIST = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+_DIST = os.path.abspath(_DIST)
+
+if os.path.isdir(_DIST):
+    # Serve JS / CSS / assets normally
+    app.mount("/assets", StaticFiles(directory=os.path.join(_DIST, "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_react(full_path: str):
+        """Return index.html for all non-API paths so React Router works."""
+        index = os.path.join(_DIST, "index.html")
+        return FileResponse(index)

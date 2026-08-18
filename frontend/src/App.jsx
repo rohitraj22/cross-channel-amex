@@ -4,7 +4,7 @@ import JourneyTab from './components/JourneyTab';
 import AnalyticsTab from './components/AnalyticsTab';
 import SimulatorTab from './components/SimulatorTab';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL || '';
 
 /* ── Risk helpers ── */
 function riskLevel(pct) {
