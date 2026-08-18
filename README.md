@@ -2,7 +2,7 @@
 
 A real-time, explainable identity resolution and event-stitching platform that links customer interactions across **Mobile App**, **Web Portal**, **Call Center**, and **In-Person Lounges/Branches** into a single 360° customer journey timeline.
 
-** Deployed on:** https://cross-channel-amex.onrender.com/
+** Deployed on: ** https://cross-channel-amex.onrender.com/
 
 ---
 
